@@ -1,8 +1,20 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { useRef } from "react";
+import type { MouseEvent } from "react";
+import dynamic from "next/dynamic";
+import {
+  motion,
+  useMotionValue,
+  useSpring,
+  useTransform,
+  useMotionTemplate,
+} from "framer-motion";
 import { ArrowUpRight, Github, Linkedin, Mail, FileCode2 } from "lucide-react";
 import { profile } from "@/data/resume";
+import type { CursorTarget } from "./HeroCanvas";
+
+const HeroCanvas = dynamic(() => import("./HeroCanvas"), { ssr: false });
 
 const treeLines = [
   { indent: 0, text: "<App>", comment: "" },
@@ -13,16 +25,132 @@ const treeLines = [
   { indent: 0, text: "</App>", comment: "" },
 ];
 
-export default function Hero() {
+function Magnetic({
+  children,
+  className,
+  strength = 0.35,
+}: {
+  children: React.ReactNode;
+  className?: string;
+  strength?: number;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const x = useSpring(0, { stiffness: 200, damping: 15, mass: 0.2 });
+  const y = useSpring(0, { stiffness: 200, damping: 15, mass: 0.2 });
+  return (
+    <motion.div
+      ref={ref}
+      style={{ x, y }}
+      className={className}
+      onMouseMove={(e: MouseEvent<HTMLDivElement>) => {
+        const el = e.currentTarget;
+        const rect = el.getBoundingClientRect();
+        const dx = e.clientX - (rect.left + rect.width / 2);
+        const dy = e.clientY - (rect.top + rect.height / 2);
+        x.set(dx * strength);
+        y.set(dy * strength);
+      }}
+      onMouseLeave={() => {
+        x.set(0);
+        y.set(0);
+      }}
+    >
+      {children}
+    </motion.div>
+  );
+}
+
+function HeroInner() {
+  const sectionRef = useRef<HTMLElement>(null);
+  const cursorRef = useRef<CursorTarget>({ x: 0, y: 0, active: false });
+
+  // Smooth spring-following spotlight glow
+  const glowX = useMotionValue(-1200);
+  const glowY = useMotionValue(-1200);
+  const glowSpringX = useSpring(glowX, { stiffness: 55, damping: 18, mass: 0.4 });
+  const glowSpringY = useSpring(glowY, { stiffness: 55, damping: 18, mass: 0.4 });
+
+  // 3D code-card tilt + scale
+  const rotX = useMotionValue(0);
+  const rotY = useMotionValue(0);
+  const tiltX = useSpring(rotX, { stiffness: 160, damping: 16, mass: 0.25 });
+  const tiltY = useSpring(rotY, { stiffness: 160, damping: 16, mass: 0.25 });
+  const cardScale = useSpring(1, { stiffness: 220, damping: 18 });
+
+  // Moving sheen across the card
+  const glareRawX = useMotionValue(0.5);
+  const glareRawY = useMotionValue(0.5);
+  const glareX = useTransform(glareRawX, [0, 1], [0, 100]);
+  const glareY = useTransform(glareRawY, [0, 1], [0, 100]);
+  const glare = useMotionTemplate`radial-gradient(320px circle at ${glareX}% ${glareY}%, rgba(255,255,255,0.10), transparent 60%)`;
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLElement>) => {
+    const rect = sectionRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const px = e.clientX - rect.left;
+    const py = e.clientY - rect.top;
+    sectionRef.current!.style.setProperty("--mx", `${px}px`);
+    sectionRef.current!.style.setProperty("--my", `${py}px`);
+    glowX.set(px - 320);
+    glowY.set(py - 320);
+    cursorRef.current.x = (px / rect.width) * 2 - 1;
+    cursorRef.current.y = (py / rect.height) * 2 - 1;
+    cursorRef.current.active = true;
+  };
+
+  const handleCardMove = (e: MouseEvent<HTMLElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const px = e.clientX - rect.left;
+    const py = e.clientY - rect.top;
+    const nx = (px / rect.width) * 2 - 1;
+    const ny = (py / rect.height) * 2 - 1;
+    rotY.set(nx * 10);
+    rotX.set(-ny * 10);
+    glareRawX.set(nx / 2 + 0.5);
+    glareRawY.set(ny / 2 + 0.5);
+  };
+
+  const resetCard = () => {
+    rotX.set(0);
+    rotY.set(0);
+    cardScale.set(1);
+  };
+
   return (
     <section
       id="top"
-      className="relative pt-36 pb-20 md:pt-44 md:pb-28 bg-grid bg-noise overflow-hidden"
+      ref={sectionRef}
+      onMouseMove={handleMouseMove}
+      className="relative isolate overflow-hidden bg-grid bg-noise pt-36 pb-20 md:pt-44 md:pb-28"
     >
-      <div className="pointer-events-none absolute -top-40 right-[-10%] h-96 w-96 rounded-full bg-emerald-400/10 blur-[120px]" />
-      <div className="pointer-events-none absolute bottom-[-20%] left-[-10%] h-80 w-80 rounded-full bg-teal-500/10 blur-[120px]" />
+      {/* WebGL particle / wireframe canvas */}
+      <div className="pointer-events-none absolute inset-0 z-0 opacity-90">
+        <HeroCanvas cursor={cursorRef} />
+      </div>
 
-      <div className="mx-auto max-w-6xl px-6 grid md:grid-cols-[1.1fr_0.9fr] gap-12 items-start">
+      {/* CSS-var cursor spotlight ring */}
+      <div
+        className="pointer-events-none absolute inset-0 z-0"
+        style={{
+          background:
+            "radial-gradient(560px circle at var(--mx, 30%) var(--my, 42%), rgba(34,197,94,0.13), transparent 62%)",
+        }}
+      />
+
+      {/* Smooth spring glow blob */}
+      <motion.div
+        aria-hidden
+        style={{ x: glowSpringX, y: glowSpringY }}
+        className="pointer-events-none absolute left-0 top-0 z-0 h-[40rem] w-[40rem] rounded-full opacity-50"
+      >
+        <div className="h-full w-full rounded-full bg-green-500/15 blur-[90px]" />
+      </motion.div>
+
+      {/* Decorative static auras */}
+      <div className="pointer-events-none absolute -top-40 right-[-10%] z-0 h-96 w-96 rounded-full bg-emerald-400/10 blur-[120px]" />
+      <div className="pointer-events-none absolute bottom-[-20%] left-[-10%] z-0 h-80 w-80 rounded-full bg-teal-500/10 blur-[120px]" />
+
+      <div className="relative z-10 mx-auto max-w-6xl px-6 grid items-start gap-12 md:grid-cols-[1.1fr_0.9fr]">
         <div>
           <motion.div
             initial={{ opacity: 0, y: 8 }}
@@ -44,7 +172,7 @@ export default function Hero() {
             className="mt-6 font-display text-4xl sm:text-5xl md:text-6xl font-semibold leading-[1.05] text-balance"
           >
             {profile.name}
-            <span className="block mt-2 text-neutral-300 text-2xl sm:text-3xl md:text-4xl font-medium">
+            <span className="mt-2 block text-2xl font-medium text-neutral-300 sm:text-3xl md:text-4xl">
               {profile.role}
             </span>
           </motion.h1>
@@ -53,7 +181,7 @@ export default function Hero() {
             initial={{ opacity: 0, y: 14 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.15 }}
-            className="mt-6 max-w-xl text-neutral-400 text-base md:text-lg leading-relaxed"
+            className="mt-6 max-w-xl text-base leading-relaxed text-neutral-400 md:text-lg"
           >
             {profile.subtitle}
           </motion.p>
@@ -64,87 +192,135 @@ export default function Hero() {
             transition={{ duration: 0.6, delay: 0.25 }}
             className="mt-9 flex flex-wrap items-center gap-4"
           >
-            <a
-              href="#contact"
-              className="inline-flex items-center gap-2 rounded-md bg-emerald-400 text-neutral-950 font-medium text-sm px-5 py-3 hover:brightness-110 hover:shadow-[0_0_20px_rgba(52,211,153,0.35)] transition"
-            >
-              Contact Me <ArrowUpRight size={16} />
-            </a>
-            <a
-              href="#agents"
-              className="inline-flex items-center gap-2 rounded-md border border-neutral-800 font-mono text-sm px-5 py-3 hover:border-emerald-400/60 hover:text-emerald-300 transition-colors"
-            >
-              <FileCode2 size={16} /> AGENTS.md
-            </a>
+            {/*__BUTTONS__*/}
+            <Magnetic>
+              <a
+                href="#contact"
+                className="inline-flex items-center gap-2 rounded-md bg-emerald-400 px-5 py-3 text-sm font-medium text-neutral-950 transition hover:brightness-110 hover:shadow-[0_0_20px_rgba(34,197,94,0.45)]"
+              >
+                Contact Me <ArrowUpRight size={16} />
+              </a>
+            </Magnetic>
 
-            <div className="flex items-center gap-3 ml-1">
+            <Magnetic strength={0.25}>
+              <a
+                href="#agents"
+                className="inline-flex items-center gap-2 rounded-md border border-neutral-800 px-5 py-3 font-mono text-sm transition-colors hover:border-emerald-400/60 hover:text-emerald-300"
+              >
+                <FileCode2 size={16} /> AGENTS.md
+              </a>
+            </Magnetic>
+
+            <Magnetic strength={0.5}>
               <a
                 href={profile.githubUrl}
                 target="_blank"
                 rel="noreferrer"
                 aria-label="GitHub"
-                className="h-10 w-10 rounded-md border border-neutral-800 flex items-center justify-center hover:border-emerald-400/60 hover:text-emerald-300 transition-colors"
+                className="flex h-10 w-10 items-center justify-center rounded-md border border-neutral-800 transition-colors hover:border-emerald-400/60 hover:text-emerald-300"
               >
                 <Github size={16} />
               </a>
+            </Magnetic>
+
+            <Magnetic strength={0.5}>
               <a
                 href={profile.linkedinUrl}
                 target="_blank"
                 rel="noreferrer"
                 aria-label="LinkedIn"
-                className="h-10 w-10 rounded-md border border-neutral-800 flex items-center justify-center hover:border-emerald-400/60 hover:text-emerald-300 transition-colors"
+                className="flex h-10 w-10 items-center justify-center rounded-md border border-neutral-800 transition-colors hover:border-emerald-400/60 hover:text-emerald-300"
               >
                 <Linkedin size={16} />
               </a>
+            </Magnetic>
+
+            <Magnetic strength={0.5}>
               <a
                 href={`mailto:${profile.email}`}
                 aria-label="Email"
-                className="h-10 w-10 rounded-md border border-neutral-800 flex items-center justify-center hover:border-emerald-400/60 hover:text-emerald-300 transition-colors"
+                className="flex h-10 w-10 items-center justify-center rounded-md border border-neutral-800 transition-colors hover:border-emerald-400/60 hover:text-emerald-300"
               >
                 <Mail size={16} />
               </a>
-            </div>
+            </Magnetic>
           </motion.div>
         </div>
-<motion.div
+
+        {/* 3D tiltable code card — outer supplies entrance, inner does the tilt */}
+        <motion.div
           initial={{ opacity: 0, y: 20, scale: 0.98 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           transition={{ duration: 0.7, delay: 0.3 }}
-          className="rounded-lg border border-neutral-800 bg-neutral-900/70 overflow-hidden shadow-2xl shadow-black/40 backdrop-blur-sm"
+          className="relative"
+          style={{ perspective: 1100 }}
         >
-          <div className="flex items-center gap-1.5 px-4 py-3 border-b border-neutral-800">
-            <span className="h-2.5 w-2.5 rounded-full bg-[#ff5f56]" />
-            <span className="h-2.5 w-2.5 rounded-full bg-[#ffbd2e]" />
-            <span className="h-2.5 w-2.5 rounded-full bg-[#27c93f]" />
-            <span className="font-mono text-[11px] text-neutral-500 ml-3">sdk.tsx</span>
-          </div>
-          <div className="p-5 font-mono text-[13px] leading-7">
-            {treeLines.map((line, i) => (
-              <motion.div
-                key={i}
-                initial={{ opacity: 0, x: -6 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.3, delay: 0.6 + i * 0.08 }}
-                style={{ paddingLeft: line.indent * 18 }}
-                className="flex items-center gap-3 whitespace-pre"
+          <motion.div
+            onMouseMove={handleCardMove}
+            onMouseEnter={() => cardScale.set(1.03)}
+            onMouseLeave={resetCard}
+            style={{
+              rotateX: tiltX,
+              rotateY: tiltY,
+              scale: cardScale,
+              transformStyle: "preserve-3d",
+            }}
+            className="group relative overflow-hidden rounded-lg border border-neutral-800 bg-neutral-900/70 shadow-2xl shadow-black/40 backdrop-blur-sm"
+          >
+            <div className="flex items-center gap-1.5 border-b border-neutral-800 px-4 py-3">
+              <span className="h-2.5 w-2.5 rounded-full bg-[#ff5f56]" />
+              <span className="h-2.5 w-2.5 rounded-full bg-[#ffbd2e]" />
+              <span className="h-2.5 w-2.5 rounded-full bg-[#27c93f]" />
+              <span
+                className="ml-3 font-mono text-[11px] text-neutral-500"
+                style={{ transform: "translateZ(30px)" }}
               >
-                <span className="text-emerald-300">{line.text}</span>
-                {line.comment && (
-                  <span className="text-neutral-600 text-[11px]">
-                    {`// ${line.comment}`}
-                  </span>
-                )}
-              </motion.div>
-            ))}
+                sdk.tsx
+              </span>
+            </div>
+
+            <div
+              className="p-5 font-mono text-[13px] leading-7"
+              style={{ transform: "translateZ(20px)" }}
+            >
+              {treeLines.map((line, i) => (
+                <motion.div
+                  key={i}
+                  initial={{ opacity: 0, x: -6 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ duration: 0.3, delay: 0.6 + i * 0.08 }}
+                  style={{ paddingLeft: line.indent * 18 }}
+                  className="flex items-center gap-3 whitespace-pre"
+                >
+                  <span className="text-emerald-300">{line.text}</span>
+                  {line.comment && (
+                    <span className="text-[11px] text-neutral-600">
+                      {`// ${line.comment}`}
+                    </span>
+                  )}
+                </motion.div>
+              ))}
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 1.1 }}
+                className="mt-2 text-neutral-500 cursor-blink"
+              />
+            </div>
+
+            {/* Cursor-following sheen */}
             <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 1.1 }}
-              className="mt-2 text-neutral-500 cursor-blink"
+              aria-hidden
+              style={{ background: glare, opacity: 0.5 }}
+              className="pointer-events-none absolute inset-0 z-10 mix-blend-soft-light"
             />
-          </div>
+          </motion.div>
         </motion.div>
       </div>
     </section>
   );
+}
+
+export default function Hero() {
+  return <HeroInner />;
 }
