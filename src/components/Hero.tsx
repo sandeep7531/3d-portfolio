@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useEffect, useState } from "react";
 import type { MouseEvent } from "react";
 import dynamic from "next/dynamic";
 import {
@@ -64,6 +64,23 @@ function HeroInner() {
   const sectionRef = useRef<HTMLElement>(null);
   const cursorRef = useRef<CursorTarget>({ x: 0, y: 0, active: false });
 
+  const [mounted, setMounted] = useState(false);
+
+  // Auto-download resume on first visit per session
+  useEffect(() => {
+    setMounted(true);
+    const hasDownloaded = sessionStorage.getItem("resumeDownloaded");
+    if (!hasDownloaded) {
+      const link = document.createElement("a");
+      link.href = "/resume.pdf"; // Path inside public folder
+      link.download = "Sandeep_Rai_Resume.pdf";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      sessionStorage.setItem("resumeDownloaded", "true");
+    }
+  }, []);
+
   // Smooth spring-following spotlight glow
   const glowX = useMotionValue(-1200);
   const glowY = useMotionValue(-1200);
@@ -125,7 +142,7 @@ function HeroInner() {
     >
       {/* WebGL particle / wireframe canvas */}
       <div className="pointer-events-none absolute inset-0 z-0 opacity-90">
-        <HeroCanvas cursor={cursorRef} />
+        {mounted && <HeroCanvas cursor={cursorRef} />}
       </div>
 
       {/* CSS-var cursor spotlight ring */}
@@ -196,7 +213,7 @@ function HeroInner() {
             <Magnetic>
               <a
                 href="#contact"
-                className="inline-flex items-center gap-2 rounded-md bg-emerald-400 px-5 py-3 text-sm font-medium text-neutral-950 transition hover:brightness-110 hover:shadow-[0_0_20px_rgba(34,197,94,0.45)]"
+                className="inline-flex items-center gap-2 rounded-md border border-emerald-500/30 bg-emerald-900/80 px-5 py-3 text-sm font-medium text-emerald-100 transition-colors hover:border-emerald-400 hover:bg-emerald-800 hover:text-white"
               >
                 Contact Me <ArrowUpRight size={16} />
               </a>
