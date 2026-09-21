@@ -9,6 +9,7 @@ import Projects from "@/components/Projects";
 import AgentsBlock from "@/components/AgentsBlock";
 import Contact from "@/components/Contact";
 import FloatingContactButton from "@/components/FloatingContactButton";
+import { SpeedInsights } from '@vercel/speed-insights/next';
 
 export default function Home() {
   return (
@@ -26,6 +27,8 @@ export default function Home() {
       </main>
       <Contact />
       <FloatingContactButton />
+      <SpeedInsights />
+
     </>
   );
 }
