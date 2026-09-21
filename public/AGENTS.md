@@ -4,7 +4,7 @@ Senior Frontend & AI-Driven App Engineer (New Delhi, India, remote-friendly).
 
 ## Contact
 - Email: raisandeep756@gmail.com
-- Phone: +91 7531954900
+- Phone: +91 8851413233
 - LinkedIn: https://linkedin.com/in/sandeeprai7531
 - GitHub: https://github.com/sandeep-75
 

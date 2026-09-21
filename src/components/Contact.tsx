@@ -8,14 +8,40 @@ import { profile } from "@/data/resume";
 const inputCls =
   "w-full rounded-md border border-neutral-800 bg-neutral-950 px-4 py-3 text-sm text-neutral-100 placeholder:text-neutral-600 focus:border-emerald-400/60 focus:outline-none focus:ring-1 focus:ring-emerald-400/40 transition-colors";
 
-export default function Contact() {
-  const [sent, setSent] = useState(false);
+type Status = "idle" | "sending" | "sent" | "error";
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+export default function Contact() {
+  const [status, setStatus] = useState<Status>("idle");
+  const [sender, setSender] = useState({ name: "", mobile: "" });
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setSent(true);
-    setTimeout(() => setSent(false), 3500);
-    e.currentTarget.reset();
+    const form = e.currentTarget;
+    const data = new FormData(form);
+    const payload = {
+      name: String(data.get("name") ?? ""),
+      mobile: String(data.get("mobile") ?? ""),
+      email: String(data.get("email") ?? ""),
+      message: String(data.get("message") ?? ""),
+      company: String(data.get("company") ?? ""), // honeypot — real users never fill this
+    };
+
+    setStatus("sending");
+    try {
+      const res = await fetch("/api/contact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error(`Request failed with ${res.status}`);
+
+      setSender({ name: payload.name.trim(), mobile: payload.mobile.trim() });
+      setStatus("sent");
+      form.reset();
+      setTimeout(() => setStatus("idle"), 5000);
+    } catch {
+      setStatus("error");
+    }
   };
 
   return (
@@ -101,10 +127,24 @@ export default function Contact() {
             transition={{ duration: 0.5, delay: 0.15 }}
             className="space-y-4"
           >
+            <input
+              type="text"
+              name="company"
+              tabIndex={-1}
+              autoComplete="off"
+              className="hidden"
+              aria-hidden="true"
+            />
             <div className="grid sm:grid-cols-2 gap-4">
               <input required type="text" name="name" placeholder="Your name" className={inputCls} />
-              <input required type="email" name="email" placeholder="Your email" className={inputCls} />
+              <input required type="tel" name="mobile" placeholder="Your mobile number" className={inputCls} />
             </div>
+            <input
+              type="email"
+              name="email"
+              placeholder="Your email (optional)"
+              className={inputCls}
+            />
             <textarea
               required
               name="message"
@@ -114,13 +154,27 @@ export default function Contact() {
             />
             <button
               type="submit"
-              className="inline-flex items-center gap-2 rounded-md bg-emerald-400 text-neutral-950 font-medium text-sm px-5 py-3 hover:brightness-110 hover:shadow-[0_0_20px_rgba(52,211,153,0.35)] transition"
+              disabled={status === "sending"}
+              className="inline-flex items-center gap-2 rounded-md bg-emerald-400 text-neutral-950 font-medium text-sm px-5 py-3 hover:brightness-110 hover:shadow-[0_0_20px_rgba(52,211,153,0.35)] transition disabled:cursor-not-allowed disabled:opacity-60"
             >
-              <Send size={15} /> Send message
+              <Send size={15} /> {status === "sending" ? "Sending…" : "Send message"}
             </button>
-            {sent && (
+            {status === "sent" && (
               <p className="font-mono text-sm text-emerald-300">
-                ✓ Thanks — this demo form is frontend-only. Reach me directly at {profile.email}.
+                ✓ Thanks{sender.name ? ` ${sender.name}` : ""} — message received. I&apos;ll reach
+                out at {sender.mobile} shortly.
+              </p>
+            )}
+            {status === "error" && (
+              <p className="font-mono text-sm text-red-400">
+                ✕ Something went wrong — please try again or email me directly at{" "}
+                <a
+                  href={`mailto:${profile.email}`}
+                  className="underline hover:text-emerald-300"
+                >
+                  {profile.email}
+                </a>
+                .
               </p>
             )}
           </motion.form>

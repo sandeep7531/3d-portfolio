@@ -8,6 +8,7 @@ import Stack from "@/components/Stack";
 import Projects from "@/components/Projects";
 import AgentsBlock from "@/components/AgentsBlock";
 import Contact from "@/components/Contact";
+import FloatingContactButton from "@/components/FloatingContactButton";
 
 export default function Home() {
   return (
@@ -24,6 +25,7 @@ export default function Home() {
         <AgentsBlock />
       </main>
       <Contact />
+      <FloatingContactButton />
     </>
   );
 }
