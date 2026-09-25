@@ -72,8 +72,8 @@ function HeroInner() {
     const hasDownloaded = sessionStorage.getItem("resumeDownloaded");
     if (!hasDownloaded) {
       const link = document.createElement("a");
-      link.href = "/resume.pdf"; // Path inside public folder
-      link.download = "Sandeep_Rai_Resume.pdf";
+      link.href = "/Sandeep_Rai_Senior_Frontend_Engineer_Resume.pdf"; // Path inside public folder
+      link.download = "Sandeep_Rai_Senior_Frontend_Engineer_Resume.pdf";
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
